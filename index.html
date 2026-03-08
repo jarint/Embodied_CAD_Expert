@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CAD Expertise Sharing System</title>
+  <link rel="stylesheet" href="/src/styles/main.css" />
+</head>
+<body>
+  <!-- Top Bar -->
+  <div id="top-bar">
+    <div id="top-bar-left">
+      <span id="app-title">CAD Expertise Sharing</span>
+    </div>
+    <div id="top-bar-center">
+      <div id="mode-toggle-container">
+        <button id="mode-toggle-expert" class="mode-toggle-btn active" data-mode="expert">Expert View</button>
+        <button id="mode-toggle-novice" class="mode-toggle-btn" data-mode="novice">Novice View</button>
+      </div>
+    </div>
+    <div id="top-bar-right">
+      <span id="connection-status">● Connected</span>
+    </div>
+  </div>
+
+  <!-- Main Layout -->
+  <div id="main-layout">
+    <!-- Left Toolbar -->
+    <div id="cad-toolbar">
+      <div id="toolbar-header">Tools</div>
+      <div id="toolbar-buttons">
+        <!-- Buttons will be created by cadUI.js -->
+      </div>
+    </div>
+
+    <!-- Viewport Container -->
+    <div id="viewport-container">
+      <canvas id="viewport-canvas"></canvas>
+      <!-- Callout UI panels will be injected here dynamically -->
+      <!-- Sketch overlay canvas will be injected here dynamically -->
+      <!-- Gaze cursors will be injected here dynamically -->
+    </div>
+
+    <!-- Right Sidebar (Component Tree) -->
+    <div id="component-sidebar">
+      <div id="sidebar-header">Components</div>
+      <div id="component-tree">
+        <!-- Component tree items will be created by cadUI.js -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Status Bar -->
+  <div id="status-bar">
+    <span id="status-message">Ready</span>
+    <span id="status-mode">Mode: Expert</span>
+    <span id="status-coords">X: 0 Y: 0 Z: 0</span>
+  </div>
+
+  <!-- Webcam feed container for gesture nav (hidden by default) -->
+  <div id="webcam-container" style="display: none;">
+    <video id="webcam-feed" autoplay playsinline></video>
+    <canvas id="gesture-canvas"></canvas>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

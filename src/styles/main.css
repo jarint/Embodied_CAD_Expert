@@ -1,0 +1,855 @@
+/* ========================================
+   CAD Expertise Sharing System — Master CSS
+   Dark CAD aesthetic, orange accents
+   ======================================== */
+
+/* --- Reset & Base --- */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --bg-primary: #1e1e1e;
+  --bg-secondary: #2a2a2a;
+  --bg-tertiary: #333333;
+  --border-color: #3a3a3a;
+  --text-primary: #e0e0e0;
+  --text-secondary: #aaaaaa;
+  --text-muted: #777777;
+  --accent: #e07b00;
+  --accent-hover: #c06a00;
+  --accent-light: #f0a030;
+  --danger: #e04040;
+  --danger-hover: #c03030;
+  --success: #40c060;
+  --font-stack: 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  --toolbar-width: 56px;
+  --sidebar-width: 200px;
+  --topbar-height: 40px;
+  --statusbar-height: 24px;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-stack);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+/* --- Top Bar --- */
+#top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--topbar-height);
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  padding: 0 12px;
+  z-index: 100;
+  position: relative;
+}
+
+#top-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#app-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: 0.3px;
+}
+
+#top-bar-center {
+  display: flex;
+  align-items: center;
+}
+
+#mode-toggle-container {
+  display: flex;
+  background: var(--bg-primary);
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+}
+
+.mode-toggle-btn {
+  padding: 4px 16px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-family: var(--font-stack);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.mode-toggle-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+}
+
+.mode-toggle-btn.active {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+#top-bar-right {
+  display: flex;
+  align-items: center;
+}
+
+#connection-status {
+  font-size: 11px;
+  color: var(--success);
+}
+
+/* --- Main Layout --- */
+#main-layout {
+  display: flex;
+  height: calc(100vh - var(--topbar-height) - var(--statusbar-height));
+  position: relative;
+}
+
+/* --- Left Toolbar --- */
+#cad-toolbar {
+  width: var(--toolbar-width);
+  min-width: var(--toolbar-width);
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  z-index: 50;
+}
+
+#toolbar-header {
+  text-align: center;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+  padding: 8px 0 4px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+#toolbar-buttons {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px 0;
+  gap: 2px;
+}
+
+.toolbar-btn {
+  width: 44px;
+  height: 44px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 9px;
+  font-family: var(--font-stack);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  transition: all 0.15s ease;
+  position: relative;
+}
+
+.toolbar-btn:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border-color: var(--border-color);
+}
+
+.toolbar-btn.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.toolbar-btn.highlighted {
+  background: rgba(224, 123, 0, 0.2);
+  border-color: var(--accent);
+  color: var(--accent);
+  animation: toolbar-highlight-pulse 1s ease-in-out infinite;
+}
+
+@keyframes toolbar-highlight-pulse {
+  0%, 100% { border-color: var(--accent); box-shadow: 0 0 4px rgba(224, 123, 0, 0.3); }
+  50% { border-color: var(--accent-light); box-shadow: 0 0 10px rgba(224, 123, 0, 0.6); }
+}
+
+.toolbar-btn-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.toolbar-btn-label {
+  font-size: 8px;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 40px;
+}
+
+/* Toolbar capture mode indicator */
+.toolbar-btn.capture-mode-active {
+  outline: 2px dashed var(--accent);
+  outline-offset: 2px;
+}
+
+#toolbar-buttons .toolbar-separator {
+  width: 36px;
+  height: 1px;
+  background: var(--border-color);
+  margin: 4px 0;
+}
+
+/* --- Viewport Container --- */
+#viewport-container {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background: var(--bg-primary);
+}
+
+#viewport-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* --- Right Sidebar (Component Tree) --- */
+#component-sidebar {
+  width: var(--sidebar-width);
+  min-width: var(--sidebar-width);
+  background: var(--bg-secondary);
+  border-left: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  z-index: 50;
+}
+
+#sidebar-header {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+  padding: 10px 12px 6px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+#component-tree {
+  padding: 4px 0;
+}
+
+.component-tree-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: background 0.1s ease;
+  font-size: 12px;
+  color: var(--text-secondary);
+  border-left: 3px solid transparent;
+}
+
+.component-tree-item:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.component-tree-item.selected {
+  background: rgba(224, 123, 0, 0.1);
+  color: var(--accent);
+  border-left-color: var(--accent);
+}
+
+.component-tree-icon {
+  font-size: 14px;
+  width: 16px;
+  text-align: center;
+}
+
+.component-tree-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.component-callout-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  display: none;
+}
+
+.component-tree-item.has-callout .component-callout-indicator {
+  display: block;
+}
+
+/* --- Status Bar --- */
+#status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--statusbar-height);
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-color);
+  padding: 0 12px;
+  font-size: 11px;
+  color: var(--text-muted);
+  z-index: 100;
+}
+
+#status-message {
+  flex: 1;
+}
+
+#status-mode {
+  margin: 0 16px;
+  color: var(--accent);
+}
+
+#status-coords {
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 10px;
+}
+
+/* --- Callout System Styles (used by 05_callout_system.md) --- */
+
+/* '+' trigger icon that appears when asset is selected */
+#callout-trigger {
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  background: var(--accent);
+  border: 2px solid #fff;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 20px;
+  line-height: 28px;
+  text-align: center;
+  cursor: pointer;
+  z-index: 200;
+  display: none;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+  user-select: none;
+  pointer-events: auto;
+}
+
+#callout-trigger:hover {
+  transform: scale(1.15);
+  box-shadow: 0 2px 12px rgba(224, 123, 0, 0.5);
+}
+
+/* Callout panel */
+.callout-panel {
+  position: absolute;
+  background: var(--bg-secondary);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  min-width: 220px;
+  max-width: 280px;
+  z-index: 200;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+  pointer-events: auto;
+}
+
+.callout-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.callout-panel-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 0 4px;
+}
+
+.callout-panel-close:hover {
+  color: var(--text-primary);
+}
+
+.callout-instructions-list {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Individual instruction row */
+.instruction-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: var(--bg-primary);
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  min-height: 36px;
+}
+
+.instruction-row.filled {
+  border-color: var(--accent);
+  background: rgba(224, 123, 0, 0.05);
+}
+
+.instruction-label {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text-primary);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.instruction-label:hover {
+  color: var(--accent);
+}
+
+/* Instruction type buttons (in unfilled rows) */
+.instruction-type-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  transition: all 0.1s ease;
+}
+
+.instruction-type-btn:hover:not(.disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(224, 123, 0, 0.1);
+}
+
+.instruction-type-btn.disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.instruction-delete-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 3px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  transition: color 0.1s;
+}
+
+.instruction-delete-btn:hover {
+  color: var(--danger);
+}
+
+/* Add new instruction button */
+.callout-add-instruction {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px;
+  margin: 4px 8px 8px;
+  background: var(--bg-primary);
+  border: 1px dashed var(--border-color);
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.1s ease;
+}
+
+.callout-add-instruction:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Connector line from callout to asset */
+.callout-connector {
+  position: absolute;
+  pointer-events: none;
+  z-index: 199;
+}
+
+/* Asset callout indicator (small icon on the 3D asset in novice mode) */
+.asset-callout-indicator {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  background: var(--accent);
+  border-radius: 50%;
+  color: #fff;
+  font-size: 12px;
+  line-height: 24px;
+  text-align: center;
+  cursor: pointer;
+  z-index: 190;
+  display: none;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+  animation: indicator-pulse 2s ease-in-out infinite;
+}
+
+@keyframes indicator-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+}
+
+/* --- Sketch Overlay Styles (used by 07_sketch_instruction.md) --- */
+#sketch-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 500;
+  display: none;
+  cursor: crosshair;
+}
+
+#sketch-canvas {
+  width: 100%;
+  height: 100%;
+}
+
+#sketch-toolbar {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  background: var(--bg-secondary);
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  z-index: 501;
+}
+
+.sketch-toolbar-btn {
+  padding: 6px 16px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 12px;
+  font-family: var(--font-stack);
+  transition: all 0.1s ease;
+}
+
+.sketch-toolbar-btn:hover {
+  border-color: var(--accent);
+}
+
+.sketch-toolbar-btn.confirm {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.sketch-toolbar-btn.confirm:hover {
+  background: var(--accent-hover);
+}
+
+.sketch-toolbar-btn.cancel {
+  background: transparent;
+}
+
+/* Color picker in sketch toolbar */
+.sketch-color-picker {
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--border-color);
+  border-radius: 4px;
+  padding: 0;
+  cursor: pointer;
+  background: none;
+}
+
+/* Stroke width selector */
+.sketch-stroke-selector {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.sketch-stroke-selector input[type="range"] {
+  width: 60px;
+  accent-color: var(--accent);
+}
+
+/* --- Voice Dialog Styles (used by 08_voice_instruction.md) --- */
+.voice-dialog {
+  position: absolute;
+  background: var(--bg-secondary);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  padding: 12px 16px;
+  max-width: 280px;
+  z-index: 210;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-primary);
+  display: none;
+}
+
+.voice-dialog-header {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+
+.voice-dialog-text {
+  color: var(--text-primary);
+}
+
+.voice-play-btn {
+  margin-top: 8px;
+  padding: 4px 12px;
+  border-radius: 4px;
+  border: 1px solid var(--accent);
+  background: rgba(224, 123, 0, 0.1);
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 11px;
+  font-family: var(--font-stack);
+  transition: all 0.1s ease;
+}
+
+.voice-play-btn:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+.voice-recording-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--danger);
+  font-size: 11px;
+}
+
+.voice-recording-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--danger);
+  animation: recording-blink 1s ease-in-out infinite;
+}
+
+@keyframes recording-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.2; }
+}
+
+/* --- Gaze Sharing Styles (used by 09_gaze_sharing.md) --- */
+.gaze-cursor {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 300;
+  display: none;
+  transition: left 0.05s linear, top 0.05s linear;
+  box-shadow: 0 0 8px rgba(0,0,0,0.4);
+}
+
+.gaze-cursor.expert {
+  background: var(--accent);
+  border: 2px solid #fff;
+}
+
+.gaze-cursor.novice {
+  background: #4a90d9;
+  border: 2px solid #fff;
+}
+
+.gaze-cursor-label {
+  position: absolute;
+  top: -18px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 9px;
+  color: #fff;
+  background: rgba(0,0,0,0.6);
+  padding: 1px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+/* Gaze active hint */
+#gaze-hint {
+  position: fixed;
+  bottom: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.7);
+  color: var(--text-primary);
+  padding: 6px 14px;
+  border-radius: 4px;
+  font-size: 11px;
+  z-index: 310;
+  display: none;
+}
+
+/* --- Webcam Container (Gesture Nav) --- */
+#webcam-container {
+  position: fixed;
+  bottom: 60px;
+  right: 16px;
+  width: 200px;
+  height: 150px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 2px solid var(--accent);
+  z-index: 400;
+  background: #000;
+}
+
+#webcam-container video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1); /* mirror */
+}
+
+#webcam-container canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  transform: scaleX(-1);
+}
+
+/* --- Utility Classes --- */
+.hidden { display: none !important; }
+.fade-in { animation: fadeIn 0.2s ease-out; }
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* --- AR Anchor Button (in callout rows, expert mode, unanchored) --- */
+.ar-anchor-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 3px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.ar-anchor-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(224, 123, 0, 0.1);
+}
+
+/* --- AR Anchor Badge (anchored state, both expert and novice) --- */
+.ar-anchor-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+
+.ar-anchor-badge.anchored {
+  background: rgba(224, 123, 0, 0.2);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+}
+
+.ar-anchor-badge.anchored:hover {
+  background: rgba(224, 123, 0, 0.35);
+}
+
+.novice-ar-link {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.novice-ar-link:hover {
+  background: var(--accent-hover);
+}
+
+/* Button capture mode status banner */
+#capture-mode-banner {
+  position: fixed;
+  top: var(--topbar-height);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--accent);
+  color: #fff;
+  padding: 6px 20px;
+  border-radius: 0 0 6px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  z-index: 250;
+  display: none;
+  box-shadow: 0 2px 10px rgba(224, 123, 0, 0.4);
+}

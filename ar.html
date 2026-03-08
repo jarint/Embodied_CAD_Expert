@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>CAD AR Viewer</title>
+  <style>
+    /* WOZ PROTOTYPE — AR viewer styles */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #000; font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif; }
+
+    #ar-canvas {
+      width: 100vw;
+      height: 100vh;
+      display: block;
+    }
+
+    #ar-hud {
+      position: fixed;
+      top: 16px;
+      left: 16px;
+      right: 16px;
+      color: #fff;
+      font-size: 14px;
+      z-index: 10;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    #ar-status {
+      background: rgba(0,0,0,0.6);
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+    }
+
+    #ar-woz-badge {
+      background: rgba(224, 123, 0, 0.8);
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+
+    /* --- Spatial Anchor Labels --- */
+    #ar-labels-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 20;
+    }
+
+    .ar-anchor-label {
+      position: absolute;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      background: rgba(0, 0, 0, 0.75);
+      border: 1px solid rgba(224, 123, 0, 0.6);
+      border-radius: 6px;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 500;
+      white-space: nowrap;
+      pointer-events: none;
+      transform: translate(-50%, -100%);
+      transition: opacity 0.15s ease;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+      border-bottom: 2px solid rgba(224, 123, 0, 0.8);
+    }
+
+    .ar-anchor-label-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      border-radius: 3px;
+      font-size: 12px;
+      flex-shrink: 0;
+    }
+
+    .ar-anchor-label-text {
+      font-size: 14px;
+      line-height: 1.3;
+    }
+
+    /* Instruction hint at bottom */
+    #ar-hint {
+      position: fixed;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.6);
+      color: rgba(255, 255, 255, 0.7);
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 12px;
+      z-index: 10;
+      text-align: center;
+      max-width: 90%;
+    }
+  </style>
+</head>
+<body>
+  <div id="ar-hud">
+    <div id="ar-status">AR Viewer — Rotate your device to view</div>
+    <div id="ar-woz-badge">WOZ PROTOTYPE</div>
+  </div>
+
+  <canvas id="ar-canvas"></canvas>
+
+  <!-- Container for spatially anchored instruction labels -->
+  <div id="ar-labels-container"></div>
+
+  <div id="ar-hint">
+    Rotate your device (or drag) to explore the model.<br>
+    Labels appear clearly when you face the anchored geometry.
+  </div>
+
+  <!-- WOZ PROTOTYPE — implementation in src/arViewer.js -->
+  <script type="module" src="/src/arViewer.js"></script>
+</body>
+</html>
