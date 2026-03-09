@@ -897,21 +897,30 @@ function updateStatusMessage(msg) {
 export function applyRemoteState(remoteStore) {
   _isRemoteUpdate = true;
 
+  // Only process entries that carry callout data (have an instructions array).
+  // Other subsystems (e.g. gaze) broadcast to the same channel; skip their keys.
   for (const [assetName, remoteEntry] of Object.entries(remoteStore)) {
+    if (!remoteEntry || !Array.isArray(remoteEntry.instructions)) continue;
     const localEntry = calloutStore[assetName];
     calloutStore[assetName] = {
-      instructions: remoteEntry.instructions || [],
+      instructions: remoteEntry.instructions,
       isOpen: localEntry ? localEntry.isOpen : false
     };
     const hasInstructions = calloutStore[assetName].instructions.length > 0;
     markComponentHasCallout(assetName, hasInstructions);
   }
 
-  // Remove assets no longer in remote state
-  for (const assetName of Object.keys(calloutStore)) {
-    if (!(assetName in remoteStore)) {
-      delete calloutStore[assetName];
-      markComponentHasCallout(assetName, false);
+  // Only run the "remove stale assets" pass when the message actually contains
+  // callout data. A gaze-only payload must not evict callout entries.
+  const hasCalloutData = Object.values(remoteStore).some(
+    v => v && Array.isArray(v.instructions)
+  );
+  if (hasCalloutData) {
+    for (const assetName of Object.keys(calloutStore)) {
+      if (!remoteStore[assetName] || !Array.isArray(remoteStore[assetName].instructions)) {
+        delete calloutStore[assetName];
+        markComponentHasCallout(assetName, false);
+      }
     }
   }
 
