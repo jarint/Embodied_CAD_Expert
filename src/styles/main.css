@@ -741,6 +741,66 @@ html, body {
   display: none;
 }
 
+/* --- Zoom Window / Selection Rect (gestureNav WOZ) --- */
+
+#selection-rect {
+  position: fixed;
+  pointer-events: none;
+  display: none;
+  z-index: 350;
+}
+
+#selection-rect.expert {
+  border: 2px dashed var(--danger);
+  background: rgba(224, 64, 64, 0.08);
+}
+
+#selection-rect.novice {
+  border: 2px dashed #4a90d9;
+  background: rgba(74, 144, 217, 0.08);
+}
+
+#zoom-window {
+  position: fixed;
+  display: none;
+  z-index: 401;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.7);
+  background: var(--bg-primary);
+  border: 2px solid transparent;
+}
+
+#zoom-window.expert { border-color: var(--danger); }
+#zoom-window.novice { border-color: #4a90d9; }
+
+#zoom-window-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 10px;
+  font-size: 10px;
+  font-family: var(--font-stack);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+}
+
+#zoom-window.expert #zoom-window-header { color: var(--danger); }
+#zoom-window.novice #zoom-window-header { color: #4a90d9; }
+
+.zoom-esc-hint {
+  font-size: 9px;
+  color: var(--text-muted);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+#zoom-window-canvas {
+  display: block;
+}
+
 /* --- Webcam Container (Gesture Nav) --- */
 #webcam-container {
   position: fixed;
