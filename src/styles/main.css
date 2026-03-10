@@ -692,7 +692,7 @@ html, body {
 
 /* --- Gaze Sharing Styles (used by 09_gaze_sharing.md) --- */
 .gaze-cursor {
-  position: absolute;
+  position: fixed;
   width: 16px;
   height: 16px;
   border-radius: 50%;
@@ -704,7 +704,7 @@ html, body {
 }
 
 .gaze-cursor.expert {
-  background: var(--accent);
+  background: var(--danger);
   border: 2px solid #fff;
 }
 
