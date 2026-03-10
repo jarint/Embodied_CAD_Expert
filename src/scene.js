@@ -94,12 +94,12 @@ export function initScene() {
     requestAnimationFrame(animate);
     controls.update();
 
-    // Run any registered per-frame callbacks
+    renderer.render(scene, camera);
+
+    // Run per-frame callbacks AFTER render so canvas pixels are fresh
     for (const cb of animationCallbacks) {
       cb();
     }
-
-    renderer.render(scene, camera);
   }
   animate();
 

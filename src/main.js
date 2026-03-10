@@ -6,7 +6,7 @@ import { loadAsset } from './assetLoader.js';
 import { initCADUI } from './cadUI.js';
 import { initCalloutSystem, applyRemoteState } from './calloutSystem.js';
 import { initGazeSharing, applyRemoteGazeState } from './gazeSharing.js';
-import { initGestureNav } from './gestureNav.js';
+import { initGestureNav, applyRemoteZoomState } from './gestureNav.js';
 import { initSyncClient, onRemoteState } from './syncClient.js';
 
 async function init() {
@@ -27,6 +27,7 @@ async function init() {
   onRemoteState((remoteStore) => {
     applyRemoteState(remoteStore);
     applyRemoteGazeState(remoteStore);
+    applyRemoteZoomState(remoteStore);
   });
 
   console.log('[CAD Expertise] All systems initialized.');
