@@ -28,6 +28,8 @@ let arAnchorTargetAssetName = null;
 let arAnchorTargetSlotIndex = null;
 let arAnchorBannerEl = null;
 let arHoverHighlightMesh = null;
+let arHoverEdgeLines = null;
+let arHoverVertexMarker = null;
 
 export function initCalloutSystem(sceneRef, cameraRef, rendererRef, modelRef) {
   scene = sceneRef;
@@ -770,33 +772,107 @@ function onARAnchorHover(event) {
     const hitMesh = hit.object;
     const geometry = hitMesh.geometry;
 
+    // --- Vertex marker at hit point ---
+    const sphereGeo = new THREE.SphereGeometry(0.04, 16, 16);
+    const sphereMat = new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false });
+    arHoverVertexMarker = new THREE.Mesh(sphereGeo, sphereMat);
+    arHoverVertexMarker.position.copy(hit.point);
+    arHoverVertexMarker.renderOrder = 1001;
+    scene.add(arHoverVertexMarker);
+
     if (geometry.index && faceIndex != null) {
       const posAttr = geometry.attributes.position;
       const indexAttr = geometry.index;
 
-      const i0 = indexAttr.getX(faceIndex * 3);
-      const i1 = indexAttr.getX(faceIndex * 3 + 1);
-      const i2 = indexAttr.getX(faceIndex * 3 + 2);
+      // --- Flood-fill adjacent coplanar faces for a convincing surface patch ---
+      const hitNormal = hit.face.normal.clone();
+      const normalMatrix = new THREE.Matrix3().getNormalMatrix(hitMesh.matrixWorld);
+      hitNormal.applyMatrix3(normalMatrix).normalize();
 
-      const v0 = new THREE.Vector3().fromBufferAttribute(posAttr, i0);
-      const v1 = new THREE.Vector3().fromBufferAttribute(posAttr, i1);
-      const v2 = new THREE.Vector3().fromBufferAttribute(posAttr, i2);
+      const COPLANAR_THRESHOLD = 0.90;
+      const MAX_REGION_FACES = 80;
+      const totalFaces = indexAttr.count / 3;
 
-      v0.applyMatrix4(hitMesh.matrixWorld);
-      v1.applyMatrix4(hitMesh.matrixWorld);
-      v2.applyMatrix4(hitMesh.matrixWorld);
+      // Build vertex → face adjacency map
+      const vertexToFaces = new Map();
+      for (let f = 0; f < totalFaces; f++) {
+        for (let c = 0; c < 3; c++) {
+          const vi = indexAttr.getX(f * 3 + c);
+          if (!vertexToFaces.has(vi)) vertexToFaces.set(vi, []);
+          vertexToFaces.get(vi).push(f);
+        }
+      }
 
+      // BFS flood-fill from the hit face
+      const visited = new Set();
+      const regionFaces = [];
+      const queue = [faceIndex];
+      visited.add(faceIndex);
+
+      const _v0 = new THREE.Vector3(), _v1 = new THREE.Vector3(), _v2 = new THREE.Vector3();
+      const _faceNormal = new THREE.Vector3();
+
+      while (queue.length > 0 && regionFaces.length < MAX_REGION_FACES) {
+        const fi = queue.shift();
+        regionFaces.push(fi);
+
+        for (let c = 0; c < 3; c++) {
+          const vi = indexAttr.getX(fi * 3 + c);
+          const neighbors = vertexToFaces.get(vi);
+          if (!neighbors) continue;
+          for (const nf of neighbors) {
+            if (visited.has(nf)) continue;
+            const ni0 = indexAttr.getX(nf * 3);
+            const ni1 = indexAttr.getX(nf * 3 + 1);
+            const ni2 = indexAttr.getX(nf * 3 + 2);
+            _v0.fromBufferAttribute(posAttr, ni0);
+            _v1.fromBufferAttribute(posAttr, ni1);
+            _v2.fromBufferAttribute(posAttr, ni2);
+            _v0.applyMatrix4(hitMesh.matrixWorld);
+            _v1.applyMatrix4(hitMesh.matrixWorld);
+            _v2.applyMatrix4(hitMesh.matrixWorld);
+            _faceNormal.crossVectors(
+              _v1.clone().sub(_v0),
+              _v2.clone().sub(_v0)
+            ).normalize();
+            if (_faceNormal.dot(hitNormal) >= COPLANAR_THRESHOLD) {
+              visited.add(nf);
+              queue.push(nf);
+            }
+          }
+        }
+      }
+
+      // --- Build highlight mesh from all region faces ---
+      const regionVerts = new Float32Array(regionFaces.length * 9);
+      const edgeVerts = [];
+
+      for (let r = 0; r < regionFaces.length; r++) {
+        const fi = regionFaces[r];
+        const ai = indexAttr.getX(fi * 3);
+        const bi = indexAttr.getX(fi * 3 + 1);
+        const ci = indexAttr.getX(fi * 3 + 2);
+
+        const a = new THREE.Vector3().fromBufferAttribute(posAttr, ai).applyMatrix4(hitMesh.matrixWorld);
+        const b = new THREE.Vector3().fromBufferAttribute(posAttr, bi).applyMatrix4(hitMesh.matrixWorld);
+        const c = new THREE.Vector3().fromBufferAttribute(posAttr, ci).applyMatrix4(hitMesh.matrixWorld);
+
+        regionVerts[r * 9] = a.x;     regionVerts[r * 9 + 1] = a.y;  regionVerts[r * 9 + 2] = a.z;
+        regionVerts[r * 9 + 3] = b.x;  regionVerts[r * 9 + 4] = b.y;  regionVerts[r * 9 + 5] = b.z;
+        regionVerts[r * 9 + 6] = c.x;  regionVerts[r * 9 + 7] = c.y;  regionVerts[r * 9 + 8] = c.z;
+
+        edgeVerts.push(a.x, a.y, a.z, b.x, b.y, b.z);
+        edgeVerts.push(b.x, b.y, b.z, c.x, c.y, c.z);
+        edgeVerts.push(c.x, c.y, c.z, a.x, a.y, a.z);
+      }
+
+      // Surface highlight
       const highlightGeo = new THREE.BufferGeometry();
-      const vertices = new Float32Array([
-        v0.x, v0.y, v0.z,
-        v1.x, v1.y, v1.z,
-        v2.x, v2.y, v2.z,
-      ]);
-      highlightGeo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+      highlightGeo.setAttribute('position', new THREE.BufferAttribute(regionVerts, 3));
 
       const highlightMat = new THREE.MeshBasicMaterial({
         color: 0xe07b00,
-        opacity: 0.6,
+        opacity: 0.35,
         transparent: true,
         side: THREE.DoubleSide,
         depthTest: false,
@@ -805,6 +881,14 @@ function onARAnchorHover(event) {
       arHoverHighlightMesh = new THREE.Mesh(highlightGeo, highlightMat);
       arHoverHighlightMesh.renderOrder = 999;
       scene.add(arHoverHighlightMesh);
+
+      // Wireframe edges
+      const edgeGeo = new THREE.BufferGeometry();
+      edgeGeo.setAttribute('position', new THREE.Float32BufferAttribute(edgeVerts, 3));
+      const edgeMat = new THREE.LineBasicMaterial({ color: 0xe07b00, depthTest: false, linewidth: 1 });
+      arHoverEdgeLines = new THREE.LineSegments(edgeGeo, edgeMat);
+      arHoverEdgeLines.renderOrder = 1000;
+      scene.add(arHoverEdgeLines);
     }
 
     viewport.style.cursor = 'crosshair';
@@ -819,6 +903,18 @@ function removeARAnchorHoverHighlight() {
     arHoverHighlightMesh.geometry.dispose();
     arHoverHighlightMesh.material.dispose();
     arHoverHighlightMesh = null;
+  }
+  if (arHoverEdgeLines) {
+    scene.remove(arHoverEdgeLines);
+    arHoverEdgeLines.geometry.dispose();
+    arHoverEdgeLines.material.dispose();
+    arHoverEdgeLines = null;
+  }
+  if (arHoverVertexMarker) {
+    scene.remove(arHoverVertexMarker);
+    arHoverVertexMarker.geometry.dispose();
+    arHoverVertexMarker.material.dispose();
+    arHoverVertexMarker = null;
   }
 }
 
