@@ -5,6 +5,12 @@
 // After a region is finalized, pressing Z opens a floating zoom window showing
 // a magnified live view of the selected viewport region.
 // The zoom window state is synced to the other tab via broadcastState.
+//
+// Zoom content strategy (in priority order):
+//   1. Screen Capture API (getDisplayMedia) — captures ALL visible DOM content
+//      including toolbar buttons, sidebar, etc. Requires one-time user permission.
+//   2. renderer.domElement — fallback when screen capture is unavailable or denied.
+//      Only captures the Three.js 3D viewport area.
 
 import { getCurrentMode, onModeChange } from './cadUI.js';
 import { getRenderer, registerAnimationCallback, disableOrbitControls, enableOrbitControls } from './scene.js';
@@ -15,8 +21,8 @@ let selectionActive = false;
 
 // Drag state
 let isDragging = false;
-let dragStart = null;  // { x, y } in client coords
-let dragEnd   = null;  // { x, y } in client coords
+let dragStart = null;
+let dragEnd   = null;
 
 // Finalized local selection rect in client coords: { x, y, w, h }
 let finalRect = null;
@@ -25,20 +31,25 @@ let finalRect = null;
 let remoteRect = null;
 
 // Local zoom window DOM
-let selectionRectEl   = null;
-let zoomWindowEl      = null;
-let zoomHeaderEl      = null;
-let zoomCanvasEl      = null;
-let zoomCtx           = null;
+let selectionRectEl  = null;
+let zoomWindowEl     = null;
+let zoomHeaderEl     = null;
+let zoomCanvasEl     = null;
+let zoomCtx          = null;
 
-// Remote zoom window DOM (shows the other user's selected region)
+// Remote zoom window DOM
 let remoteZoomWindowEl  = null;
 let remoteZoomHeaderEl  = null;
 let remoteZoomCanvasEl  = null;
 let remoteZoomCtx       = null;
 
-const MIN_DRAG_PX = 8;    // ignore accidental micro-drags
-const ZOOM_MAX_PX = 360;  // max width or height of the zoom canvas
+// Screen Capture API state
+let screenVideoEl       = null;
+let screenCaptureActive = false;
+let screenCapturePromise = null;  // prevents concurrent requests
+
+const MIN_DRAG_PX = 8;
+const ZOOM_MAX_PX = 360;
 
 export function initGestureNav() {
   currentMode = getCurrentMode();
@@ -47,13 +58,12 @@ export function initGestureNav() {
   wireSelectButton();
   attachKeyListeners();
 
-  // Reads canvas pixels AFTER renderer.render() — see scene.js animation loop
+  // Runs AFTER renderer.render() each frame (see scene.js animation loop)
   registerAnimationCallback(updateZoomCanvases);
 
   onModeChange((mode) => {
     currentMode = mode;
     applyLocalRoleStyles();
-    // Remote window role is always the opposite; update label if visible
     if (remoteZoomWindowEl && remoteZoomWindowEl.style.display !== 'none') {
       applyRemoteRoleStyles(currentMode === 'expert' ? 'novice' : 'expert');
     }
@@ -67,46 +77,37 @@ export function initGestureNav() {
 // ---------------------------------------------------------------------------
 
 function createDOMElements() {
-  // Drag selection rectangle overlay
   selectionRectEl = document.createElement('div');
   selectionRectEl.id = 'selection-rect';
   document.body.appendChild(selectionRectEl);
 
-  // Local zoom window
   zoomWindowEl = document.createElement('div');
   zoomWindowEl.id = 'zoom-window';
-
   zoomHeaderEl = document.createElement('div');
   zoomHeaderEl.className = 'zoom-header';
   zoomWindowEl.appendChild(zoomHeaderEl);
-
   zoomCanvasEl = document.createElement('canvas');
   zoomCanvasEl.className = 'zoom-canvas';
   zoomWindowEl.appendChild(zoomCanvasEl);
   zoomCtx = zoomCanvasEl.getContext('2d');
-
   document.body.appendChild(zoomWindowEl);
 
-  // Remote zoom window (shown when the other tab opens a zoom)
   remoteZoomWindowEl = document.createElement('div');
   remoteZoomWindowEl.id = 'remote-zoom-window';
-
   remoteZoomHeaderEl = document.createElement('div');
   remoteZoomHeaderEl.className = 'zoom-header';
   remoteZoomWindowEl.appendChild(remoteZoomHeaderEl);
-
   remoteZoomCanvasEl = document.createElement('canvas');
   remoteZoomCanvasEl.className = 'zoom-canvas';
   remoteZoomWindowEl.appendChild(remoteZoomCanvasEl);
   remoteZoomCtx = remoteZoomCanvasEl.getContext('2d');
-
   document.body.appendChild(remoteZoomWindowEl);
 
   applyLocalRoleStyles();
 }
 
 function applyLocalRoleStyles() {
-  const roleLabel = currentMode === 'expert' ? 'Expert' : 'Novice';
+  const label = currentMode === 'expert' ? 'Expert' : 'Novice';
   if (selectionRectEl) {
     selectionRectEl.classList.remove('expert', 'novice');
     selectionRectEl.classList.add(currentMode);
@@ -117,20 +118,67 @@ function applyLocalRoleStyles() {
   }
   if (zoomHeaderEl) {
     zoomHeaderEl.innerHTML =
-      `<span>${roleLabel} — Zoom Window</span><span class="zoom-esc-hint">Esc to close</span>`;
+      `<span>${label} — Zoom Window</span><span class="zoom-esc-hint">Esc to close</span>`;
   }
 }
 
 function applyRemoteRoleStyles(role) {
-  const roleLabel = role === 'expert' ? 'Expert' : 'Novice';
+  const label = role === 'expert' ? 'Expert' : 'Novice';
   if (remoteZoomWindowEl) {
     remoteZoomWindowEl.classList.remove('expert', 'novice');
     remoteZoomWindowEl.classList.add(role);
   }
   if (remoteZoomHeaderEl) {
     remoteZoomHeaderEl.innerHTML =
-      `<span>${roleLabel} — Zoom Window</span><span class="zoom-esc-hint">Remote</span>`;
+      `<span>${label} — Zoom Window</span><span class="zoom-esc-hint">Remote</span>`;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Screen Capture API
+// ---------------------------------------------------------------------------
+
+// Request full-tab screen capture. Returns true on success, false on failure/denial.
+// Safe to call multiple times — only one request is ever in flight.
+async function requestScreenCapture() {
+  if (screenCaptureActive) return true;
+  if (screenCapturePromise) return screenCapturePromise;
+
+  screenCapturePromise = (async () => {
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { frameRate: 30 },
+        preferCurrentTab: true,  // Chrome hint: pre-select the current tab
+      });
+
+      const video = document.createElement('video');
+      video.srcObject = stream;
+      video.muted = true;
+
+      await new Promise((resolve) => { video.onloadedmetadata = resolve; });
+      await video.play();
+
+      // Clean up when the user clicks "Stop sharing" in the browser chrome
+      stream.getVideoTracks()[0].addEventListener('ended', () => {
+        screenVideoEl      = null;
+        screenCaptureActive = false;
+        screenCapturePromise = null;
+        console.log('[GestureNav] Screen capture ended by user');
+      });
+
+      screenVideoEl       = video;
+      screenCaptureActive = true;
+      console.log('[GestureNav] Screen capture ready —', video.videoWidth, 'x', video.videoHeight);
+      return true;
+    } catch (e) {
+      // User denied or API unavailable — fall back to renderer-only
+      console.warn('[GestureNav] Screen capture unavailable:', e.message);
+      screenCapturePromise = null;
+      return false;
+    }
+  })();
+
+  return screenCapturePromise;
 }
 
 // ---------------------------------------------------------------------------
@@ -141,11 +189,8 @@ function wireSelectButton() {
   const btn = document.getElementById('tool-select');
   if (btn) {
     btn.addEventListener('click', () => {
-      if (selectionActive) {
-        exitSelectionMode();
-      } else {
-        enterSelectionMode();
-      }
+      if (selectionActive) exitSelectionMode();
+      else                 enterSelectionMode();
     });
   }
 }
@@ -217,10 +262,8 @@ function onMouseUp(e) {
   };
 
   exitSelectionMode();
-  // Keep the selection rect visible as confirmation
   selectionRectEl.style.display = 'block';
   setElRect(selectionRectEl, finalRect.x, finalRect.y, finalRect.w, finalRect.h);
-
   console.log('[GestureNav] Region finalized:', finalRect);
 }
 
@@ -272,7 +315,16 @@ function openLocalZoomWindow() {
   applyLocalRoleStyles();
   sizeAndPositionZoomWindow(zoomWindowEl, zoomCanvasEl, finalRect);
   zoomWindowEl.style.display = 'block';
+
+  // Draw immediately with whatever source is ready (renderer fallback first)
   drawFrame(zoomCtx, zoomCanvasEl, finalRect);
+
+  // Request screen capture (async). On success, subsequent drawFrame calls
+  // automatically upgrade to the richer screen capture source.
+  if (!screenCaptureActive) {
+    requestScreenCapture(); // fire and forget — updateZoomCanvases picks it up
+  }
+
   broadcastZoomState(true);
 }
 
@@ -286,7 +338,7 @@ function closeLocalZoomWindow() {
 }
 
 // ---------------------------------------------------------------------------
-// Remote zoom window (receives the other tab's zoom state)
+// Remote zoom window
 // ---------------------------------------------------------------------------
 
 function openRemoteZoomWindow(role) {
@@ -325,17 +377,59 @@ function sizeAndPositionZoomWindow(windowEl, canvasEl, rect) {
   const headerH = 32;
   let wx = rect.x + rect.w + 16;
   let wy = rect.y;
-  if (wx + dstW + 8 > window.innerWidth)         wx = Math.max(8, rect.x - dstW - 16);
-  if (wy + dstH + headerH + 8 > window.innerHeight) wy = Math.max(8, window.innerHeight - dstH - headerH - 16);
+  if (wx + dstW + 8 > window.innerWidth)              wx = Math.max(8, rect.x - dstW - 16);
+  if (wy + dstH + headerH + 8 > window.innerHeight)   wy = Math.max(8, window.innerHeight - dstH - headerH - 16);
 
   windowEl.style.left = `${wx}px`;
   windowEl.style.top  = `${wy}px`;
 }
 
-// Copy the renderer canvas region defined by `rect` (client coords) into `ctx`
+// Draw the region defined by `rect` (client coords) into `ctx`.
+// Prefers the screen capture video (captures ALL DOM content including toolbar).
+// Falls back to the Three.js renderer canvas if screen capture is unavailable.
 function drawFrame(ctx, canvasEl, rect) {
   if (!rect || !ctx) return;
 
+  if (screenCaptureActive && screenVideoEl && screenVideoEl.readyState >= 2) {
+    drawFrameFromVideo(ctx, canvasEl, rect);
+  } else {
+    drawFrameFromRenderer(ctx, canvasEl, rect);
+  }
+}
+
+// Draw from the screen capture video stream.
+// The video dimensions are in physical (DPR-scaled) pixels; client coords are
+// in CSS pixels. Scale = videoWidth / window.innerWidth ≈ devicePixelRatio.
+function drawFrameFromVideo(ctx, canvasEl, rect) {
+  const vid  = screenVideoEl;
+  const vidW = vid.videoWidth;
+  const vidH = vid.videoHeight;
+  if (vidW === 0 || vidH === 0) return;
+
+  const scaleX = vidW / window.innerWidth;
+  const scaleY = vidH / window.innerHeight;
+
+  const sx = rect.x * scaleX;
+  const sy = rect.y * scaleY;
+  const sw = rect.w * scaleX;
+  const sh = rect.h * scaleY;
+
+  const csx = Math.max(0, sx);
+  const csy = Math.max(0, sy);
+  const csw = Math.min(sw, vidW - csx);
+  const csh = Math.min(sh, vidH - csy);
+
+  if (csw <= 0 || csh <= 0) return;
+
+  try {
+    ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+    ctx.drawImage(vid, csx, csy, csw, csh, 0, 0, canvasEl.width, canvasEl.height);
+  } catch (_) {}
+}
+
+// Draw from the Three.js renderer canvas.
+// Only captures the 3D viewport area; DOM overlays are invisible here.
+function drawFrameFromRenderer(ctx, canvasEl, rect) {
   const renderer = getRenderer();
   if (!renderer) return;
 
@@ -345,8 +439,6 @@ function drawFrame(ctx, canvasEl, rect) {
     : { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
 
   const canvas = renderer.domElement;
-
-  // Map client coords → renderer canvas pixel coords (accounts for DPR)
   const scaleX = canvas.width  / vpRect.width;
   const scaleY = canvas.height / vpRect.height;
 
@@ -365,9 +457,7 @@ function drawFrame(ctx, canvasEl, rect) {
   try {
     ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
     ctx.drawImage(canvas, csx, csy, csw, csh, 0, 0, canvasEl.width, canvasEl.height);
-  } catch (_) {
-    // Silently degrade if WebGL buffer isn't readable
-  }
+  } catch (_) {}
 }
 
 // Called each animation frame
@@ -381,7 +471,7 @@ function updateZoomCanvases() {
 }
 
 // ---------------------------------------------------------------------------
-// Sync — broadcast local zoom state, receive remote zoom state
+// Sync
 // ---------------------------------------------------------------------------
 
 function getViewportRect() {
@@ -397,7 +487,6 @@ function broadcastZoomState(active) {
     const vp = getViewportRect();
     payload.zoom[currentMode] = {
       active: true,
-      // Normalize relative to viewport so coords map correctly on any screen size
       x: (finalRect.x - vp.left) / vp.width,
       y: (finalRect.y - vp.top)  / vp.height,
       w: finalRect.w / vp.width,
@@ -412,14 +501,12 @@ function broadcastZoomState(active) {
 export function applyRemoteZoomState(remoteStore) {
   if (!remoteStore.zoom) return;
 
-  // The remote role is the opposite of local
   const remoteRole = currentMode === 'expert' ? 'novice' : 'expert';
   const zoomData   = remoteStore.zoom[remoteRole];
   if (!zoomData) return;
 
   if (zoomData.active) {
     const vp = getViewportRect();
-    // Denormalize back to local client coords
     remoteRect = {
       x: zoomData.x * vp.width  + vp.left,
       y: zoomData.y * vp.height + vp.top,
