@@ -692,7 +692,7 @@ html, body {
 
 /* --- Gaze Sharing Styles (used by 09_gaze_sharing.md) --- */
 .gaze-cursor {
-  position: absolute;
+  position: fixed;
   width: 16px;
   height: 16px;
   border-radius: 50%;
@@ -704,7 +704,7 @@ html, body {
 }
 
 .gaze-cursor.expert {
-  background: var(--accent);
+  background: var(--danger);
   border: 2px solid #fff;
 }
 
@@ -739,6 +739,73 @@ html, body {
   font-size: 11px;
   z-index: 310;
   display: none;
+}
+
+/* --- Zoom Window / Selection Rect (gestureNav WOZ) --- */
+
+#selection-rect {
+  position: fixed;
+  pointer-events: none;
+  display: none;
+  z-index: 350;
+}
+
+#selection-rect.expert {
+  border: 2px dashed var(--danger);
+  background: rgba(224, 64, 64, 0.08);
+}
+
+#selection-rect.novice {
+  border: 2px dashed #4a90d9;
+  background: rgba(74, 144, 217, 0.08);
+}
+
+#zoom-window,
+#remote-zoom-window {
+  position: fixed;
+  display: none;
+  z-index: 401;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.7);
+  background: var(--bg-primary);
+  border: 2px solid transparent;
+}
+
+#zoom-window.expert,
+#remote-zoom-window.expert { border-color: var(--danger); }
+
+#zoom-window.novice,
+#remote-zoom-window.novice { border-color: #4a90d9; }
+
+.zoom-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 10px;
+  font-size: 10px;
+  font-family: var(--font-stack);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+}
+
+#zoom-window.expert .zoom-header,
+#remote-zoom-window.expert .zoom-header { color: var(--danger); }
+
+#zoom-window.novice .zoom-header,
+#remote-zoom-window.novice .zoom-header { color: #4a90d9; }
+
+.zoom-esc-hint {
+  font-size: 9px;
+  color: var(--text-muted);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.zoom-canvas {
+  display: block;
 }
 
 /* --- Webcam Container (Gesture Nav) --- */

@@ -67,6 +67,27 @@ let orbitRadius = 6.7; // fixed orbit radius, only changed by pinch-to-zoom
 let orbitTheta = 0;    // horizontal angle (radians)
 let orbitPhi = 0.45;   // vertical angle (radians), ~26 degrees up
 
+// Smoothing targets — inputs write to these, animation loop lerps toward them
+let targetTheta = orbitTheta;
+let targetPhi = orbitPhi;
+let targetRadius = orbitRadius;
+
+// Momentum / inertia
+let velocityTheta = 0;
+let velocityPhi = 0;
+const MOMENTUM_FRICTION = 0.92;
+const MOMENTUM_THRESHOLD = 0.0001;
+const LERP_SPEED = 0.18;
+
+// Gyroscope low-pass filter — EMA smoothed sensor values
+let smoothedAlpha = 0;
+let smoothedBeta = 0;
+const GYRO_EMA = 0.25;
+
+// Gyro accumulator — unbounded horizontal rotation (fixes 180° wrap)
+let gyroThetaAccum = 0;
+let prevSmoothedAlpha = 0;
+
 init();
 
 async function init() {
@@ -367,14 +388,31 @@ function onDeviceOrientation(event) {
 
   // Capture reference orientation on the very first reading
   if (!gyroInitialized) {
-    gyroRefAlpha = alpha;
     gyroRefBeta = beta;
+    smoothedAlpha = alpha;
+    smoothedBeta = beta;
+    prevSmoothedAlpha = alpha;
+    gyroThetaAccum = orbitTheta;
     gyroInitialized = true;
     console.log('[AR] Gyro reference captured:', { alpha, beta, gamma });
   }
 
-  orientationData.alpha = alpha;
-  orientationData.beta = beta;
+  // Low-pass EMA filter — kills high-frequency sensor noise
+  let dA = alpha - smoothedAlpha;
+  if (dA > 180) dA -= 360;
+  if (dA < -180) dA += 360;
+  smoothedAlpha = (smoothedAlpha + dA * GYRO_EMA + 360) % 360;
+  smoothedBeta += (beta - smoothedBeta) * GYRO_EMA;
+
+  // Accumulate horizontal rotation as frame deltas (no 180° wrap limit)
+  let frameDeltaAlpha = smoothedAlpha - prevSmoothedAlpha;
+  if (frameDeltaAlpha > 180) frameDeltaAlpha -= 360;
+  if (frameDeltaAlpha < -180) frameDeltaAlpha += 360;
+  gyroThetaAccum -= THREE.MathUtils.degToRad(frameDeltaAlpha);
+  prevSmoothedAlpha = smoothedAlpha;
+
+  orientationData.alpha = smoothedAlpha;
+  orientationData.beta = smoothedBeta;
   orientationData.gamma = gamma;
   hasGyroscope = true;
 }
@@ -399,17 +437,23 @@ function setupTouchFallback() {
     if (e.touches.length === 1) {
       const dx = e.touches[0].clientX - touchStartX;
       const dy = e.touches[0].clientY - touchStartY;
-      orbitTheta += dx * 0.005;
-      orbitPhi += dy * 0.005;
-      orbitPhi = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, orbitPhi));
+      velocityTheta = dx * 0.008;
+      velocityPhi = dy * 0.008;
+      targetTheta += velocityTheta;
+      targetPhi += velocityPhi;
+      targetPhi = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, targetPhi));
       touchStartX = e.touches[0].clientX;
       touchStartY = e.touches[0].clientY;
     }
     e.preventDefault();
   }, { passive: false });
 
+  canvas.addEventListener('touchend', () => { /* momentum continues via velocityTheta/Phi */ });
+
   canvas.addEventListener('mousedown', (e) => {
     isDragging = true;
+    velocityTheta = 0;
+    velocityPhi = 0;
     touchStartX = e.clientX;
     touchStartY = e.clientY;
   });
@@ -417,14 +461,23 @@ function setupTouchFallback() {
     if (!isDragging) return;
     const dx = e.clientX - touchStartX;
     const dy = e.clientY - touchStartY;
-    orbitTheta += dx * 0.005;
-    orbitPhi += dy * 0.005;
-    orbitPhi = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, orbitPhi));
+    velocityTheta = dx * 0.008;
+    velocityPhi = dy * 0.008;
+    targetTheta += velocityTheta;
+    targetPhi += velocityPhi;
+    targetPhi = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, targetPhi));
     touchStartX = e.clientX;
     touchStartY = e.clientY;
   });
   canvas.addEventListener('mouseup', () => { isDragging = false; });
   canvas.addEventListener('mouseleave', () => { isDragging = false; });
+
+  // Mouse wheel zoom for desktop testing
+  canvas.addEventListener('wheel', (e) => {
+    targetRadius += e.deltaY * 0.01;
+    targetRadius = Math.max(2, Math.min(20, targetRadius));
+    e.preventDefault();
+  }, { passive: false });
 }
 
 // --- Pinch-to-Zoom ---
@@ -444,8 +497,8 @@ function setupTouchZoom() {
       const dist = getTouchDistance(e.touches);
       const delta = dist - lastPinchDist;
 
-      orbitRadius -= delta * 0.02;
-      orbitRadius = Math.max(2, Math.min(20, orbitRadius));
+      targetRadius -= delta * 0.02;
+      targetRadius = Math.max(2, Math.min(20, targetRadius));
 
       lastPinchDist = dist;
       e.preventDefault();
@@ -467,27 +520,38 @@ const lookTarget = new THREE.Vector3(0, 1.5, 0);
 function animate() {
   requestAnimationFrame(animate);
 
+  // --- Apply momentum when not actively dragging ---
+  if (!isDragging) {
+    if (Math.abs(velocityTheta) > MOMENTUM_THRESHOLD || Math.abs(velocityPhi) > MOMENTUM_THRESHOLD) {
+      targetTheta += velocityTheta;
+      targetPhi += velocityPhi;
+      targetPhi = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, targetPhi));
+      velocityTheta *= MOMENTUM_FRICTION;
+      velocityPhi *= MOMENTUM_FRICTION;
+    }
+  }
+
+  // --- Smooth interpolation toward targets ---
+  orbitTheta += (targetTheta - orbitTheta) * LERP_SPEED;
+  orbitPhi += (targetPhi - orbitPhi) * LERP_SPEED;
+  orbitRadius += (targetRadius - orbitRadius) * LERP_SPEED;
+
   // WOZ PROTOTYPE — update camera using stable spherical coordinates
-  let theta = orbitTheta;
-  let phi = orbitPhi;
+  if (hasGyroscope && gyroInitialized && !isDragging) {
+    // Horizontal: accumulated frame deltas — full 360°+ rotation
+    targetTheta = gyroThetaAccum;
 
-  if (hasGyroscope && gyroInitialized) {
-    // Gyroscope mode: compute relative rotation from reference orientation
-    let deltaAlpha = orientationData.alpha - gyroRefAlpha;
+    // Vertical: absolute delta from reference (intentionally clamped)
     let deltaBeta = orientationData.beta - gyroRefBeta;
-
-    // Normalize deltaAlpha to [-180, 180]
-    if (deltaAlpha > 180) deltaAlpha -= 360;
-    if (deltaAlpha < -180) deltaAlpha += 360;
-
-    // Map gyro deltas to orbit angles
-    theta = THREE.MathUtils.degToRad(-deltaAlpha);
-    phi = THREE.MathUtils.clamp(
+    targetPhi = THREE.MathUtils.clamp(
       THREE.MathUtils.degToRad(deltaBeta * 0.5),
       -Math.PI / 3,
       Math.PI / 3
     );
   }
+
+  const theta = orbitTheta;
+  const phi = orbitPhi;
 
   // Spherical to cartesian (theta = horizontal, phi = vertical offset)
   camera.position.x = orbitRadius * Math.sin(theta) * Math.cos(phi);
